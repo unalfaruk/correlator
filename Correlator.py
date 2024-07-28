@@ -8,16 +8,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 import datetime
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-import matplotlib.widgets as mwidgets
+import logging
 
-def btn_step(event):
-    correlator.step()
+# A logger class breaks Spyder Variable Explorer...
+# So use a function instead to setup the logger
+def setup_logger():
+    # Generate log file name based on current datetime
+    log_file = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log")
     
-def btn_run(event):
-    correlator.run()
-    
+    # Create a logger
+    logger = logging.getLogger('custom_logger')
+    logger.setLevel(logging.INFO)  # Set the desired logging level
 
+    # Create a file handler
+    handler = logging.FileHandler(log_file)
+    handler.setLevel(logging.INFO)
+
+    # Create a logging format without timestamps
+    formatter = logging.Formatter('%(message)s')
+    handler.setFormatter(formatter)
+    handler.terminator = ""
+
+    # Add the file handler to the logger if not already added
+    if not logger.handlers:
+        logger.addHandler(handler)    
+    
+    return logger
 
 class Plotter:
     def __init__(self, correlator):
@@ -26,7 +42,7 @@ class Plotter:
         self.signal2 = correlator.sig2
         self.samples1 = np.arange(0,len(self.signal1))
         self.samples2 = np.arange(0,len(self.signal2))
-        
+    
         # Plot the first signal
         plt.ion()
         plt.subplot(4, 2, 1)
@@ -57,11 +73,40 @@ class Plotter:
         self.brun.on_clicked(self.btn_run)
 
         self.fig = plt.gcf()
+        #plt.tight_layout()
+        plt.show(block=True)
+    
+    def stepPlot(self):
+        # Plot the signals together
+        plt.subplot(4, 1, 2)
         plt.tight_layout()
-        plt.show()
+        plt.cla()
+        plt.plot(self.correlator.sig1_t - self.correlator.stepCount, self.correlator.sig1, label='Signal 1')
+        plt.plot(self.correlator.sig2_t, self.correlator.sig2, label='Signal 2', color='orange')
+        plt.title('Signals Together (Corr step)')
+        plt.xlabel('Sample Number')
+        plt.ylabel('Amplitude')
+        plt.grid(True)
+        plt.legend()
+        plt.pause(1e-6)
+        
+        # Plot the corr result
+        plt.subplot(4, 1, 3)
+        plt.tight_layout()
+        plt.cla()
+        plt.plot(self.correlator.corrStepIdx, self.correlator.corrStepResult, label='Corr val')
+        plt.title('Correlation result')
+        plt.xlabel('Shift step')
+        plt.ylabel('Amplitude')
+        plt.grid(True)
+        plt.legend()
+        plt.pause(1e-6)
+        plt.tight_layout()
+        plt.gcf().canvas.draw()
         
     def btn_step(self, event):
         self.correlator.step()
+        self.stepPlot()
     
     def btn_run(self, event):
         print("Run triggered...")
@@ -73,9 +118,9 @@ class Plotter:
         self.timer.add_callback(self.btn_step, "None")
         self.timer.start()      
     
-    def on_key(event):
+    def on_key(self,event):
         print("Run stopped...")
-        plotter.timer.stop()
+        self.timer.stop()
 
 class Correlator:
     def __init__(self, sig1, sig2):
@@ -89,24 +134,22 @@ class Correlator:
         self.sig1_t = np.arange(len(sig2),len(sig2)+len(sig1),1)
         self.sig2_t = np.arange(0,len(sig2),1)
         
-        current_time = datetime.datetime.now()
-        timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
-        self.logFile = open('correlation_log_{}.txt'.format(timestamp), 'a')        
+        global logger_wrapper
         
         #Init info about the signals
-        self.logFile.write("Sig1 has been shifted to the right by {} samples.\n".format(self.initShiftForCorr))
-        self.logFile.write("In each step, Sig1 is shifted to the left by one sample to calculate the step's correlation value.\n")
+        logger_wrapper.log("Sig1 has been shifted to the right by {} samples.\n".format(self.initShiftForCorr))
+        logger_wrapper.log("In each step, Sig1 is shifted to the left by one sample to calculate the step's correlation value.\n")
         
     def step(self):
         tmpCorrRes = 0
-        self.logFile.write("corr [{}] = ".format(self.initShiftForCorr)) 
+        logger_wrapper.log("corr [{}] = ".format(self.initShiftForCorr)) 
         for i in range(0, self.stepCount+1):
-            self.logFile.write("sig1[{}]*sig2[{}]".format(i,(self.initShiftForCorr-1)+i))            
+            logger_wrapper.log("sig1[{}]*sig2[{}]".format(i,(self.initShiftForCorr-1)+i))            
             tmpCorrRes += self.sig1[i]*self.sig2[(self.initShiftForCorr-1)+i]
             if i != self.stepCount:
-                self.logFile.write("+")
+                logger_wrapper.log("+")
         
-        self.logFile.write("= {}".format(tmpCorrRes))
+        logger_wrapper.log("= {}\n".format(tmpCorrRes))
         
         self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr)
         self.corrStepResult = np.append(self.corrStepResult, tmpCorrRes)
@@ -114,33 +157,28 @@ class Correlator:
         self.stepCount += 1
         self.initShiftForCorr -= 1
         
-        # Plot the signals together
-        plt.subplot(4, 1, 2)
-        plt.tight_layout()
-        plt.cla()
-        plt.plot(self.sig1_t - self.stepCount, self.sig1, label='Signal 1')
-        plt.plot(self.sig2_t, self.sig2, label='Signal 2', color='orange')
-        plt.title('Signals Together (Corr step)')
-        plt.xlabel('Sample Number')
-        plt.ylabel('Amplitude')
-        plt.grid(True)
-        plt.legend()
-        plt.pause(1e-6)
-        
-        # Plot the signals together
-        plt.subplot(4, 1, 3)
-        plt.tight_layout()
-        plt.cla()
-        plt.plot(self.corrStepIdx, self.corrStepResult, label='Corr val')
-        plt.title('Correlation result')
-        plt.xlabel('Shift step')
-        plt.ylabel('Amplitude')
-        plt.grid(True)
-        plt.legend()
-        plt.pause(1e-6)
-        plt.tight_layout()
-        plt.gcf().canvas.draw()     
-        
+             
+class LoggerWrapper:
+    def __init__(self, logger):
+        self.logger = logger
+
+    def log(self, message, level=logging.INFO):
+        if level == logging.DEBUG:
+            self.logger.debug(message)
+        elif level == logging.INFO:
+            self.logger.info(message)
+        elif level == logging.WARNING:
+            self.logger.warning(message)
+        elif level == logging.ERROR:
+            self.logger.error(message)
+        elif level == logging.CRITICAL:
+            self.logger.critical(message)
+        else:
+            self.logger.info(message)
+
+# Create a global logger instance
+logger = setup_logger()
+logger_wrapper = LoggerWrapper(logger)
 
 # Parameters for dummy signals
 length_signal1 = 1000
@@ -163,7 +201,4 @@ samples2 = np.arange(length_signal2)
 # Init correlator
 correlator = Correlator(signal1, signal2)
 plotter = Plotter(correlator)
-
-
-
 
