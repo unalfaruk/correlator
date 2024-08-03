@@ -91,23 +91,25 @@ class Plotter:
         plt.xlabel('Sample Number')
         plt.ylabel('Amplitude')
         plt.grid(True)
+        plt.xlim([-len(self.signal1), len(self.signal2)+len(self.signal1)-1])
         plt.legend()
         plt.pause(1e-6)
         
         # Plot the corr result
         plt.subplot(4, 1, 3)
         plt.cla()
-        plt.plot(self.correlator.corrStepIdx, self.correlator.corrStepResult, label='Corr val')
+        plt.plot(self.correlator.corrStepIdx, self.correlator.corrStepResult, label='Corr val', marker='o')
         plt.title('Correlation result')
-        plt.xlabel('Shift step')
-        plt.ylabel('Amplitude')
+        plt.xlabel('Shift step for Signal 1')
+        plt.ylabel('Corr value')
         plt.grid(True)
+        plt.xlim([min(self.correlator.shiftStepsForSig1), max(self.correlator.shiftStepsForSig1)])
         plt.legend()
         plt.pause(1e-6)
         #plt.gcf().canvas.draw()
         
     def btn_step(self, event):
-        self.correlator.step()
+        self.correlator.calculateStep()
         self.stepPlot()
     
     def btn_run(self, event):
@@ -130,39 +132,26 @@ class Correlator:
         self.sig1 = sig1
         self.sig2 = sig2
         self.stepCount = 0
-        self.initShiftForCorr = len(sig2)
+        self.initShiftForCorr = len(sig2) +1
         self.shiftStepsForSig1 = np.arange(self.initShiftForCorr,-(len(sig1)+1),-1)
         self.numberOfShiftForCorr = len(sig1) + len(sig2)
         self.corrStepIdx = np.array([])
         self.corrStepResult = np.array([])
-        self.sig1_t = np.arange(len(sig2)-1,len(sig2)+len(sig1)-1,1)
+        self.sig1_t = np.arange(len(sig2)-1,len(sig2)+len(sig1)-1,1)+1
         self.sig2_t = np.arange(0,len(sig2),1)
         
         global logger_wrapper
         
-        #Init info about the signals
+        # Init info about the signals
         logger_wrapper.log("Sig1 has been shifted to the right by {} samples.\n".format(self.initShiftForCorr))
         logger_wrapper.log("In each step, Sig1 is shifted to the left by one sample to calculate the step's correlation value.\n")
         
-    '''def step(self):
-        tmpCorrRes = 0
-        logger_wrapper.log("corr [{}] = ".format(self.initShiftForCorr)) 
-        for i in range(0, self.stepCount+1):
-            logger_wrapper.log("sig1[{}]*sig2[{}]".format(i,(self.initShiftForCorr-1)+i))            
-            tmpCorrRes += self.sig1[i]*self.sig2[(self.initShiftForCorr-1)+i]
-            if i != self.stepCount:
-                logger_wrapper.log("+")
+    def calculateStep(self):
+        # Shift the signal first
+        self.shiftSignal()
         
-        logger_wrapper.log("= {}\n".format(tmpCorrRes))
-        
-        self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr)
-        self.corrStepResult = np.append(self.corrStepResult, tmpCorrRes)
-               
-        self.stepCount += 1
-        self.initShiftForCorr -= 1'''
-        
-    def step(self):           
         logger_wrapper.log("corr step [{}]".format(self.stepCount))
+        logger_wrapper.log("corr eq = sig1[t+{}]*sig2[t]".format(-1*(self.initShiftForCorr-1)))
         
         # Keep sig2 as it is, shift sig1 step by step
         # Sig2: 0 -> len(sig2) (ALWAYS)
@@ -189,11 +178,13 @@ class Correlator:
         for sig1idx, sig2idx in zip(sig1LocalIdxAtIntersectedPoints,sig2LocalIdxAtIntersectedPoints):
             corrVal += self.sig1[sig1idx]*self.sig2[sig2idx]
         
-        logger_wrapper.log("corr result = {}".format(corrVal))
+        logger_wrapper.log("corr result = {}\n".format(corrVal))
         
-        self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr)
+        self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr-1)
         self.corrStepResult = np.append(self.corrStepResult, corrVal)
         
+    
+    def shiftSignal(self):
         # Sig1 shifts over Sig2, so Sig1 indexes are changing
         self.stepCount += 1
         self.initShiftForCorr -= 1
@@ -236,9 +227,9 @@ logger = setup_logger()
 logger_wrapper = LoggerWrapper(logger)
 
 # Parameters for dummy signals
-length_signal1 = 6
-length_signal2 = 3
-delay = 0  # delay in samples
+length_signal1 = 8
+length_signal2 = 5
+delay = -1  # delay in samples
 
 # Set the random seed for reproducibility
 np.random.seed(0)
