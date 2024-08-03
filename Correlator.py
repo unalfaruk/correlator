@@ -42,10 +42,14 @@ class Plotter:
         self.signal2 = correlator.sig2
         self.samples1 = np.arange(0,len(self.signal1))
         self.samples2 = np.arange(0,len(self.signal2))
+        
+        # Initialize the figure and axes
+        #~fig = plt.figure()
+        #self.fig = fig
     
         # Plot the first signal
-        plt.ion()
         plt.subplot(4, 2, 1)
+        plt.ion()
         plt.plot(self.samples1, self.signal1, label='Signal 1')
         plt.title('Signal 1')
         plt.xlabel('Sample Number')
@@ -60,7 +64,7 @@ class Plotter:
         plt.xlabel('Sample Number')
         plt.ylabel('Amplitude')
         plt.grid(True)
-        plt.legend()        
+        plt.legend()
         
         # Create a button for Step
         axnext = plt.axes([0.80, 0.05, 0.1, 0.075])
@@ -71,17 +75,17 @@ class Plotter:
         axnext = plt.axes([0.55, 0.05, 0.2, 0.075])
         self.brun = Button(axnext, 'Run Animation')
         self.brun.on_clicked(self.btn_run)
-
-        self.fig = plt.gcf()
-        #plt.tight_layout()
-        plt.show(block=True)
+        
+        self.stepPlot()
+        
+        plt.show()   
+        plt.tight_layout()
     
     def stepPlot(self):
         # Plot the signals together
         plt.subplot(4, 1, 2)
-        plt.tight_layout()
         plt.cla()
-        plt.plot(self.correlator.sig1_t - self.correlator.stepCount, self.correlator.sig1, label='Signal 1')
+        plt.plot(self.correlator.sig1_t, self.correlator.sig1, label='Signal 1')
         plt.plot(self.correlator.sig2_t, self.correlator.sig2, label='Signal 2', color='orange')
         plt.title('Signals Together (Corr step)')
         plt.xlabel('Sample Number')
@@ -92,7 +96,6 @@ class Plotter:
         
         # Plot the corr result
         plt.subplot(4, 1, 3)
-        plt.tight_layout()
         plt.cla()
         plt.plot(self.correlator.corrStepIdx, self.correlator.corrStepResult, label='Corr val')
         plt.title('Correlation result')
@@ -101,8 +104,7 @@ class Plotter:
         plt.grid(True)
         plt.legend()
         plt.pause(1e-6)
-        plt.tight_layout()
-        plt.gcf().canvas.draw()
+        #plt.gcf().canvas.draw()
         
     def btn_step(self, event):
         self.correlator.step()
@@ -121,7 +123,7 @@ class Plotter:
     def on_key(self,event):
         print("Run stopped...")
         self.timer.stop()
-
+        
 class Correlator:
     def __init__(self, sig1, sig2):
         self.fig = None
@@ -129,9 +131,11 @@ class Correlator:
         self.sig2 = sig2
         self.stepCount = 0
         self.initShiftForCorr = len(sig2)
+        self.shiftStepsForSig1 = np.arange(self.initShiftForCorr,-(len(sig1)+1),-1)
+        self.numberOfShiftForCorr = len(sig1) + len(sig2)
         self.corrStepIdx = np.array([])
         self.corrStepResult = np.array([])
-        self.sig1_t = np.arange(len(sig2),len(sig2)+len(sig1),1)
+        self.sig1_t = np.arange(len(sig2)-1,len(sig2)+len(sig1)-1,1)
         self.sig2_t = np.arange(0,len(sig2),1)
         
         global logger_wrapper
@@ -140,7 +144,7 @@ class Correlator:
         logger_wrapper.log("Sig1 has been shifted to the right by {} samples.\n".format(self.initShiftForCorr))
         logger_wrapper.log("In each step, Sig1 is shifted to the left by one sample to calculate the step's correlation value.\n")
         
-    def step(self):
+    '''def step(self):
         tmpCorrRes = 0
         logger_wrapper.log("corr [{}] = ".format(self.initShiftForCorr)) 
         for i in range(0, self.stepCount+1):
@@ -155,14 +159,65 @@ class Correlator:
         self.corrStepResult = np.append(self.corrStepResult, tmpCorrRes)
                
         self.stepCount += 1
-        self.initShiftForCorr -= 1
+        self.initShiftForCorr -= 1'''
         
+    def step(self):           
+        logger_wrapper.log("corr step [{}]".format(self.stepCount))
+        
+        # Keep sig2 as it is, shift sig1 step by step
+        # Sig2: 0 -> len(sig2) (ALWAYS)
+        # Sig1: len(sig2)-shift -> len(sig2+sig3)-shift   
+        
+        # Find the intersection indices of the signals
+        # This idx values are reference indices showing where they are intersected
+        minIdxIntersected = max(min(self.sig1_t),min(self.sig2_t))
+        maxIdxIntersected = min(max(self.sig1_t),max(self.sig2_t))
+        
+        globalIdxIntersected = np.arange(minIdxIntersected, maxIdxIntersected+1)
+        
+        logger_wrapper.log("intersection\t=\t{} ".format(globalIdxIntersected))
+        
+        # Find the local indices of the signals corresponding to the intersection indices
+        # Sig1 is shifted each step, so each step it's indices in the intersection changes
+        # Sig2 is always at the same place
+        sig2LocalIdxAtIntersectedPoints = globalIdxIntersected
+        sig1LocalIdxAtIntersectedPoints = globalIdxIntersected - (self.initShiftForCorr - 1)
+        
+        logger_wrapper.log("sig2 idx\t=\t{}\nsig1 idx\t=\t{} ".format(sig2LocalIdxAtIntersectedPoints, sig1LocalIdxAtIntersectedPoints))
+        
+        corrVal = 0
+        for sig1idx, sig2idx in zip(sig1LocalIdxAtIntersectedPoints,sig2LocalIdxAtIntersectedPoints):
+            corrVal += self.sig1[sig1idx]*self.sig2[sig2idx]
+        
+        logger_wrapper.log("corr result = {}".format(corrVal))
+        
+        self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr)
+        self.corrStepResult = np.append(self.corrStepResult, corrVal)
+        
+        # Sig1 shifts over Sig2, so Sig1 indexes are changing
+        self.stepCount += 1
+        self.initShiftForCorr -= 1
+        self.sig1_t -= 1
+            
+            
+    
+    def runAllSteps(self):
+        global logger_wrapper
+        logger_wrapper.setLevel(logging.CRITICAL)
+        for k in range(0, self.numberOfShiftForCorr -1):
+            self.step()
              
 class LoggerWrapper:
     def __init__(self, logger):
         self.logger = logger
-
+        self.stdout = True
+    
+    def setLevel(self, level):
+        self.logger.setLevel(level)
+        
     def log(self, message, level=logging.INFO):
+        if self.stdout:
+            print(message)
         if level == logging.DEBUG:
             self.logger.debug(message)
         elif level == logging.INFO:
@@ -181,9 +236,9 @@ logger = setup_logger()
 logger_wrapper = LoggerWrapper(logger)
 
 # Parameters for dummy signals
-length_signal1 = 1000
-length_signal2 = 800
-delay = 250  # delay in samples
+length_signal1 = 6
+length_signal2 = 3
+delay = 0  # delay in samples
 
 # Set the random seed for reproducibility
 np.random.seed(0)
@@ -201,4 +256,3 @@ samples2 = np.arange(length_signal2)
 # Init correlator
 correlator = Correlator(signal1, signal2)
 plotter = Plotter(correlator)
-
