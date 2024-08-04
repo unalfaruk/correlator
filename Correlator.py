@@ -262,14 +262,16 @@ np.random.seed(6)
 
 # Generate the first signal (random signal)
 signal1 = np.random.randn(length_signal1)
-
 # Generate the second signal (delayed version of the first signal)
 signal2 = np.roll(signal1, delay)[:length_signal2]
 
-# Create a sample number array
+# Timestamps for the signals
+# At the moment they're not used, but there is a case in my mind as an example for the future
+# So keep them here
 samples1 = np.arange(length_signal1)
 samples2 = np.arange(length_signal2)
 
 # Init correlator
+# Init plotter
 correlator = Correlator(signal1, signal2)
 plotter = Plotter(correlator)
