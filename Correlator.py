@@ -75,7 +75,7 @@ class Plotter:
         
         self.fig = plt.gcf()
         
-        plt.show()   
+        plt.show(block=True)   
         plt.tight_layout()
     
     def stepPlot(self):
@@ -107,8 +107,10 @@ class Plotter:
         
     def btn_step(self, event):
         if (self.correlator.isCorrelationCompleted):
-            self.timer.stop()
-            print("Runner stopped!")
+            if hasattr(self, 'timer'):
+                self.timer.stop()
+                print("Runner stopped!")
+            print("Correlation is completed! No need to go further!")
             return
         self.correlator.calculateStep()
         self.stepPlot()
