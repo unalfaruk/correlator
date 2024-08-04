@@ -62,6 +62,9 @@ Put your signals into *signal1* and *signal2* variable as array.
 
 4. Check the console for the final correlation result and look for a log file in the directory for a detailed record of the process.
 
+## **Screenshot**
+![GUI](correlator.gif)
+
 ## **Contributing**
 
 As an amateur project, contributions are welcome! Feel free to open issues or submit pull requests with improvements or new features. Please ensure to document your changes and test thoroughly.
