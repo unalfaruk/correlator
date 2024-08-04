@@ -73,6 +73,8 @@ class Plotter:
         
         self.stepPlot()
         
+        self.fig = plt.gcf()
+        
         plt.show()   
         plt.tight_layout()
     
@@ -93,17 +95,21 @@ class Plotter:
         # Plot the corr result
         plt.subplot(4, 1, 3)
         plt.cla()
-        plt.plot(self.correlator.corrStepIdx, self.correlator.corrStepResult, label='Corr val', marker='o')
+        plt.plot(self.correlator.corrResForSig1ShiftIdx, self.correlator.corrStepResult, label='Corr val', marker='o')
         plt.title('Correlation result')
         plt.xlabel('Shift step for Signal 1')
         plt.ylabel('Corr value')
         plt.grid(True)
-        plt.xlim([min(self.correlator.shiftStepsForSig1), max(self.correlator.shiftStepsForSig1)])
+        plt.xlim([min(self.correlator.shiftStepsForSig1)-1, max(self.correlator.shiftStepsForSig1)])
         plt.legend()
         plt.pause(1e-6)
         #plt.gcf().canvas.draw()
         
     def btn_step(self, event):
+        if (self.correlator.isCorrelationCompleted):
+            self.timer.stop()
+            print("Runner stopped!")
+            return
         self.correlator.calculateStep()
         self.stepPlot()
     
@@ -130,10 +136,11 @@ class Correlator:
         self.initShiftForCorr = len(sig2) +1
         self.shiftStepsForSig1 = np.arange(self.initShiftForCorr,-(len(sig1)+1),-1)
         self.numberOfShiftForCorr = len(sig1) + len(sig2)
-        self.corrStepIdx = np.array([])
+        self.corrResForSig1ShiftIdx = np.array([])
         self.corrStepResult = np.array([])
         self.sig1_t = np.arange(len(sig2)-1,len(sig2)+len(sig1)-1,1)+1
         self.sig2_t = np.arange(0,len(sig2),1)
+        self.isCorrelationCompleted = False
         
         global logger_wrapper
         
@@ -142,6 +149,12 @@ class Correlator:
         logger_wrapper.log("In each step, Sig1 is shifted to the left by one sample to calculate the step's correlation value.\n")
         
     def calculateStep(self):
+        if self.stepCount >= len(self.sig1) + len(self.sig2):
+            logger_wrapper.log("Final State: No need to step further. All possible steps explored!\n")
+            self.isCorrelationCompleted = True
+            self.report()            
+            return
+        
         # Shift the signal first
         self.shiftSignal()
         
@@ -175,7 +188,7 @@ class Correlator:
         
         logger_wrapper.log("corr result = {}\n\n".format(corrVal))
         
-        self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr-1)
+        self.corrResForSig1ShiftIdx = np.append(self.corrResForSig1ShiftIdx, self.initShiftForCorr-1)
         self.corrStepResult = np.append(self.corrStepResult, corrVal)        
     
     def shiftSignal(self):
@@ -189,6 +202,25 @@ class Correlator:
         logger_wrapper.setLevel(logging.CRITICAL)
         for k in range(0, self.numberOfShiftForCorr -1):
             self.step()
+    
+    def report(self):
+        if (self.isCorrelationCompleted):
+            valOfMaxCorr = max(self.corrStepResult)
+            idxOfMaxCorr = np.argmax(self.corrStepResult)
+            correspondingDelayForTheMaxVal = self.corrResForSig1ShiftIdx[idxOfMaxCorr]
+            
+            if correspondingDelayForTheMaxVal < 0:
+                shiftDirectionForSig1 = "left"
+            else:
+                shiftDirectionForSig1 = "right"
+            
+            logger_wrapper.log("Correlation completed!\n"
+                               "\tMaximum match is {}\n"
+                               "\tMaximum match found at step {}\n"
+                               "\tThe corresponding delay (or shift) for 'Signal 1' = {}\n"
+                               "\tShift 'Signal 1' to the {} by {} units to get the maximum result.\n"
+                               .format(valOfMaxCorr, idxOfMaxCorr, correspondingDelayForTheMaxVal, shiftDirectionForSig1, correspondingDelayForTheMaxVal))
+                
              
 class LoggerWrapper:
     def __init__(self, logger):
@@ -221,7 +253,7 @@ logger_wrapper = LoggerWrapper(logger)
 # Parameters for dummy signals
 length_signal1 = 10
 length_signal2 = 5
-delay = -1  # delay in samples
+delay = -3  # delay in samples
 
 # Set the random seed for reproducibility
 np.random.seed(6)
