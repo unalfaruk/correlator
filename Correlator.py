@@ -70,13 +70,12 @@ class Plotter:
         axnext = plt.axes([0.55, 0.05, 0.2, 0.075])
         self.brun = Button(axnext, 'Run Animation')
         self.brun.on_clicked(self.btn_run)
-        
+
         self.stepPlot()
         
         self.fig = plt.gcf()
-        
-        plt.show(block=True)   
         plt.tight_layout()
+        plt.show(block=True)
     
     def stepPlot(self):
         # Plot the signals together
