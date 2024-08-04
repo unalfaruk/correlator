@@ -29,9 +29,8 @@ def setup_logger():
     handler.setFormatter(formatter)
     handler.terminator = ""
 
-    # Add the file handler to the logger if not already added
-    if not logger.handlers:
-        logger.addHandler(handler)    
+    # Add the file handler to the logger
+    logger.addHandler(handler)    
     
     return logger
 
@@ -43,10 +42,6 @@ class Plotter:
         self.samples1 = np.arange(0,len(self.signal1))
         self.samples2 = np.arange(0,len(self.signal2))
         
-        # Initialize the figure and axes
-        #~fig = plt.figure()
-        #self.fig = fig
-    
         # Plot the first signal
         plt.subplot(4, 2, 1)
         plt.ion()
@@ -150,8 +145,8 @@ class Correlator:
         # Shift the signal first
         self.shiftSignal()
         
-        logger_wrapper.log("corr step [{}]".format(self.stepCount))
-        logger_wrapper.log("corr eq = sig1[t+{}]*sig2[t]".format(-1*(self.initShiftForCorr-1)))
+        logger_wrapper.log("corr step [{}]\n".format(self.stepCount))
+        logger_wrapper.log("corr eq = sig1[t+{}]*sig2[t]\n".format(-1*(self.initShiftForCorr-1)))
         
         # Keep sig2 as it is, shift sig1 step by step
         # Sig2: 0 -> len(sig2) (ALWAYS)
@@ -164,7 +159,7 @@ class Correlator:
         
         globalIdxIntersected = np.arange(minIdxIntersected, maxIdxIntersected+1)
         
-        logger_wrapper.log("intersection\t=\t{} ".format(globalIdxIntersected))
+        logger_wrapper.log("intersection idx(global)\t=\t{}\n".format(globalIdxIntersected))
         
         # Find the local indices of the signals corresponding to the intersection indices
         # Sig1 is shifted each step, so each step it's indices in the intersection changes
@@ -172,25 +167,22 @@ class Correlator:
         sig2LocalIdxAtIntersectedPoints = globalIdxIntersected
         sig1LocalIdxAtIntersectedPoints = globalIdxIntersected - (self.initShiftForCorr - 1)
         
-        logger_wrapper.log("sig2 idx\t=\t{}\nsig1 idx\t=\t{} ".format(sig2LocalIdxAtIntersectedPoints, sig1LocalIdxAtIntersectedPoints))
+        logger_wrapper.log("sig2 intersected idx\t=\t{}\nsig1 intersected idx\t=\t{}\n".format(sig2LocalIdxAtIntersectedPoints, sig1LocalIdxAtIntersectedPoints))
         
         corrVal = 0
         for sig1idx, sig2idx in zip(sig1LocalIdxAtIntersectedPoints,sig2LocalIdxAtIntersectedPoints):
             corrVal += self.sig1[sig1idx]*self.sig2[sig2idx]
         
-        logger_wrapper.log("corr result = {}\n".format(corrVal))
+        logger_wrapper.log("corr result = {}\n\n".format(corrVal))
         
         self.corrStepIdx = np.append(self.corrStepIdx, self.initShiftForCorr-1)
-        self.corrStepResult = np.append(self.corrStepResult, corrVal)
-        
+        self.corrStepResult = np.append(self.corrStepResult, corrVal)        
     
     def shiftSignal(self):
         # Sig1 shifts over Sig2, so Sig1 indexes are changing
         self.stepCount += 1
         self.initShiftForCorr -= 1
-        self.sig1_t -= 1
-            
-            
+        self.sig1_t -= 1            
     
     def runAllSteps(self):
         global logger_wrapper
@@ -208,7 +200,7 @@ class LoggerWrapper:
         
     def log(self, message, level=logging.INFO):
         if self.stdout:
-            print(message)
+            print(message, end='')
         if level == logging.DEBUG:
             self.logger.debug(message)
         elif level == logging.INFO:
@@ -227,12 +219,12 @@ logger = setup_logger()
 logger_wrapper = LoggerWrapper(logger)
 
 # Parameters for dummy signals
-length_signal1 = 8
+length_signal1 = 10
 length_signal2 = 5
 delay = -1  # delay in samples
 
 # Set the random seed for reproducibility
-np.random.seed(0)
+np.random.seed(6)
 
 # Generate the first signal (random signal)
 signal1 = np.random.randn(length_signal1)
